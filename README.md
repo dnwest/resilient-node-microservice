@@ -4,6 +4,9 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)
 ![Turborepo](https://img.shields.io/badge/Turborepo-Monorepo-red)
 ![Docker](https://img.shields.io/badge/Docker-Multi--stage-2496ED)
+![CI Pipeline](https://github.com/dnwest/resilient-node-microservice/actions/workflows/ci.yml/badge.svg)
+![Coverage](https://img.shields.io/badge/Coverage-90%25-brightgreen)
+![Tests](https://img.shields.io/badge/Tests-Passing-success)
 
 An enterprise-grade, production-ready microservice demonstrating advanced resilience patterns, observability, and modern Developer Experience (DX).
 
@@ -14,22 +17,6 @@ Production-grade Node.js microservice demonstrating resilience patterns used in 
 ## 🎯 The Problem & The Solution
 
 In distributed systems, external dependencies (like Payment Gateways or third-party APIs) will inevitably fail. This repository demonstrates how to build a Node.js microservice that **survives network partitions and external outages** without cascading failures.
-
----
-
-## 📦 Tech Stack
-
-| Layer | Technology |
-|------|-------------|
-| Runtime | Node.js 20 |
-| Language | TypeScript |
-| Framework | Express |
-| Resilience | Opossum (Circuit Breaker) |
-| Validation | Zod |
-| Logging | Pino |
-| Monorepo | pnpm + Turborepo |
-| Containerization | Docker |
-| Load Testing | k6 |
 
 ---
 
@@ -55,6 +42,39 @@ In distributed systems, external dependencies (like Payment Gateways or third-pa
    External Payment API      Fallback Response
    (Simulated failure)       503 Service Unavailable
 ```
+---
+
+## ☁️ Cloud Architecture & Deployment
+
+This microservice is designed to be cloud-native. The infrastructure is provisioned using Terraform, targeting AWS ECS (Fargate) for scalable, serverless container execution. The architecture includes a custom VPC with private subnets for the compute layer, an Application Load Balancer (ALB) for traffic distribution, and Amazon ECR for image management. This setup ensures high availability, secure network isolation, and zero-downtime deployments.
+
+/terraform
+  ├── environments/
+  │   ├── dev/
+  │   └── prod/
+  ├── modules/
+  │   ├── vpc/        
+  │   ├── ecr/         
+  │   └── ecs/          
+  ├── main.tf
+  ├── variables.tf
+  └── outputs.tf
+
+---
+
+## 📦 Tech Stack
+
+| Layer | Technology |
+|------|-------------|
+| Runtime | Node.js 20 |
+| Language | TypeScript |
+| Framework | Express |
+| Resilience | Opossum (Circuit Breaker) |
+| Validation | Zod |
+| Logging | Pino |
+| Monorepo | pnpm + Turborepo |
+| Containerization | Docker |
+| Load Testing | k6 |
 
 ---
 
@@ -174,7 +194,7 @@ Structured as a monorepo to isolate domains and share configurations efficiently
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/yourusername/resilient-microservice.git
+git clone https://github.com/dnwest/resilient-microservice.git
 
 # 2. Enter the project
 cd resilient-microservice
