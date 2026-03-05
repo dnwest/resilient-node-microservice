@@ -1,0 +1,41 @@
+{
+  "name": "resilient-microservice-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Enterprise-grade resilient microservices monorepo",
+  "author": "Cristian Fernandes <cristian.daniel.fernandes@gmail.com>",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
+    "clean": "turbo run clean && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.3.3",
+    "@types/opossum": "^8.1.9",
+    "eslint": "^8.57.0",
+    "k6": "^0.0.0",
+    "pino-pretty": "^13.1.3",
+    "prettier": "^3.8.1",
+    "tsx": "^4.21.0",
+    "turbo": "^2.8.13",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  },
+  "packageManager": "pnpm@9.1.0",
+  "dependencies": {
+    "axios": "^1.13.6",
+    "express": "^5.2.1",
+    "opossum": "^9.0.0",
+    "pino": "^10.3.1",
+    "pino-http": "^11.0.0",
+    "zod": "^4.3.6"
+  }
+}
