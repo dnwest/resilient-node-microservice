@@ -47,7 +47,7 @@ In distributed systems, external dependencies (like Payment Gateways or third-pa
 ## ☁️ Cloud Architecture & Deployment
 
 This microservice is designed to be cloud-native. The infrastructure is provisioned using Terraform, targeting AWS ECS (Fargate) for scalable, serverless container execution. The architecture includes a custom VPC with private subnets for the compute layer, an Application Load Balancer (ALB) for traffic distribution, and Amazon ECR for image management. This setup ensures high availability, secure network isolation, and zero-downtime deployments.
-
+```text
 /terraform
   ├── environments/
   │   ├── dev/
@@ -59,7 +59,7 @@ This microservice is designed to be cloud-native. The infrastructure is provisio
   ├── main.tf
   ├── variables.tf
   └── outputs.tf
-
+```
 ---
 
 ## 📦 Tech Stack
