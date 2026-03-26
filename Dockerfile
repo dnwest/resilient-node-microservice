@@ -1,5 +1,5 @@
 # --- Stage 1: Prune (Extract only the necessary workspace packages) ---
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 RUN apk add --no-cache libc6-compat bash
 WORKDIR /app
 ENV PNPM_HOME=/pnpm

@@ -1,6 +1,6 @@
 # 🛡️ Resilient Node.js Microservice Architecture
 
-![Node.js](https://img.shields.io/badge/Node.js-20.x-green)
+![Node.js](https://img.shields.io/badge/Node.js-22.x-green)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)
 ![Turborepo](https://img.shields.io/badge/Turborepo-Monorepo-red)
 ![Docker](https://img.shields.io/badge/Docker-Multi--stage-2496ED)

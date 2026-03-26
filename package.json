@@ -5,7 +5,7 @@
   "description": "Enterprise-grade resilient microservices monorepo",
   "author": "Cristian Fernandes <cristian.daniel.fernandes@gmail.com>",
   "engines": {
-    "node": ">=20.0.0",
+    "node": ">=22.0.0",
     "pnpm": ">=9.0.0"
   },
   "scripts": {
