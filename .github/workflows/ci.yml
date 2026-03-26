@@ -125,9 +125,6 @@ jobs:
       - name: Run Health Check
         run: |
           docker run -d --name payment-api-test -p 3333:3000 payment-api:test
-          sleep 10
-          docker logs payment-api-test || true
-          docker ps -a | grep payment || true
-          docker exec payment-api-test curl -f http://localhost:3000/health || docker logs payment-api-test
-          docker stop payment-api-test || true
-          docker rm payment-api-test || true
+          sleep 5
+          docker exec payment-api-test curl -f http://localhost:3000/health
+          docker stop payment-api-test
