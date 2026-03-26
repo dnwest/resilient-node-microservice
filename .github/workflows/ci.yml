@@ -119,6 +119,7 @@ jobs:
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: ./Dockerfile
+          config: ./.hadolint.yaml
 
       - name: Build Docker Image
         uses: docker/build-push-action@v6
