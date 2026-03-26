@@ -1,6 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import express, { Express } from "express";
-import pinoHttp from "pino-http";
 
 const loggerMock = {
   info: vi.fn(),
@@ -8,10 +6,6 @@ const loggerMock = {
   error: vi.fn(),
   debug: vi.fn(),
 };
-
-vi.mock("pino-http", () => {
-  return vi.fn(() => (req: any, res: any, next: any) => next());
-});
 
 vi.mock("../observability/logger", () => ({
   logger: loggerMock,
@@ -53,15 +47,9 @@ describe("Health Check Endpoint", () => {
 });
 
 describe("Graceful Shutdown", () => {
-  let processExitMock: any;
-  let loggerErrorSpy: any;
-
   beforeEach(() => {
     vi.clearAllMocks();
-    loggerErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    processExitMock = vi
-      .spyOn(process, "exit")
-      .mockImplementation((() => {}) as any);
+    vi.spyOn(process, "exit").mockImplementation((() => {}) as any);
   });
 
   afterEach(() => {

@@ -29,10 +29,6 @@ describe("StripePaymentProvider", () => {
   let mockBreaker: any;
 
   const mockSuccessResponse = { success: true, transactionId: "txn_123" };
-  const mockFallbackResponse = {
-    success: false,
-    reason: "SERVICE_UNAVAILABLE_FALLBACK",
-  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -213,7 +209,7 @@ describe("StripePaymentProvider", () => {
 
       try {
         await provider.processPayment(1000, "usd");
-      } catch (e) {
+      } catch {
         expect(loggerMock.error).toHaveBeenCalled();
       }
     });
@@ -255,7 +251,7 @@ describe("StripePaymentProvider", () => {
       for (let i = 0; i < 5; i++) {
         try {
           await provider.processPayment(1000, "usd");
-        } catch (e) {
+        } catch {
           // Expected to throw
         }
       }
