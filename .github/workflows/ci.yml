@@ -122,6 +122,10 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Debug - List built files
+        run: |
+          docker run --rm payment-api:test ls -la dist/infrastructure/http/observability/ || echo "Directory not found"
+
       - name: Run Health Check
         run: |
           set -x
