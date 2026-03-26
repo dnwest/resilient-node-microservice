@@ -4,13 +4,12 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)
 ![Turborepo](https://img.shields.io/badge/Turborepo-Monorepo-red)
 ![Docker](https://img.shields.io/badge/Docker-Multi--stage-2496ED)
-![CI Pipeline](https://github.com/dnwest/resilient-node-microservice/actions/workflows/ci.yml/badge.svg)
-![Coverage](https://img.shields.io/badge/Coverage-90%25-brightgreen)
-![Tests](https://img.shields.io/badge/Tests-Passing-success)
+![CI](https://github.com/dnwest/resilient-node-microservice/actions/workflows/ci.yml/badge.svg)
+![Test Coverage](https://img.shields.io/badge/Coverage-70%25-yellow)
+![Tests](https://img.shields.io/badge/Tests-40%20passing-success)
+![ESLint](https://img.shields.io/badge/ESLint-Passing-4B32C3)
 
 An enterprise-grade, production-ready microservice demonstrating advanced resilience patterns, observability, and modern Developer Experience (DX).
-
-Production-grade Node.js microservice demonstrating resilience patterns used in distributed systems.
 
 ---
 
@@ -26,158 +25,231 @@ In distributed systems, external dependencies (like Payment Gateways or third-pa
                 ┌───────────────┐
                 │   Client App  │
                 └───────┬───────┘
-                        │ HTTP
+                        │ HTTPS
                         ▼
-               ┌──────────────────┐
-               │   Payment API    │
-               │     (Express)    │
-               └────────┬─────────┘
-                        │
-                        ▼
-                Circuit Breaker
-                   (Opossum)
-                        │
-            ┌───────────┴───────────┐
-            ▼                       ▼
-   External Payment API      Fallback Response
-   (Simulated failure)       503 Service Unavailable
+                ┌──────────────────┐
+                │   AWS ALB       │
+                │   (HTTPS/HTTP)  │
+                └────────┬─────────┘
+                         │
+                         ▼
+                ┌──────────────────┐
+                │  AWS ECS Fargate │
+                │   (Auto-scaling)│
+                └────────┬─────────┘
+                         │
+                         ▼
+                ┌──────────────────┐
+                │   Payment API    │
+                │     (Express)   │
+                └────────┬─────────┘
+                         │
+                         ▼
+                ┌──────────────────┐
+                │  Circuit Breaker │
+                │    (Opossum)    │
+                └────────┬─────────┘
+                         │
+             ┌───────────┴───────────┐
+             ▼                       ▼
+    ┌────────────────┐     ┌─────────────────┐
+    │ External API   │     │ Fallback (503)  │
+    │ (Stripe/etc)   │     │ Fail-Fast       │
+    └────────────────┘     └─────────────────┘
 ```
+
 ---
 
-## ☁️ Cloud Architecture & Deployment
+## ☁️ Cloud Architecture (AWS)
 
-This microservice is designed to be cloud-native. The infrastructure is provisioned using Terraform, targeting AWS ECS (Fargate) for scalable, serverless container execution. The architecture includes a custom VPC with private subnets for the compute layer, an Application Load Balancer (ALB) for traffic distribution, and Amazon ECR for image management. This setup ensures high availability, secure network isolation, and zero-downtime deployments.
+Infrastructure provisioned with **Terraform** for reproducibility and GitOps.
+
 ```text
-/terraform
-  ├── environments/
-  │   ├── dev/
-  │   └── prod/
-  ├── modules/
-  │   ├── vpc/        
-  │   ├── ecr/         
-  │   └── ecs/          
-  ├── main.tf
-  ├── variables.tf
-  └── outputs.tf
+┌─────────────────────────────────────────────────────────────────┐
+│                         AWS Cloud                                │
+│                                                                 │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │                     VPC (10.0.0.0/16)                    │   │
+│  │                                                           │   │
+│  │   ┌─────────────┐         ┌─────────────────────────┐   │   │
+│  │   │ Public Subnet│         │    Public Subnet         │   │   │
+│  │   │   (AZ-1)   │         │      (AZ-2)             │   │   │
+│  │   └──────┬──────┘         └────────────┬────────────┘   │   │
+│  │          │                              │                 │   │
+│  │          └──────────────┬───────────────┘                 │   │
+│  │                         │                                │   │
+│  │                         ▼                                │   │
+│  │   ┌─────────────────────────────────────────────────┐   │   │
+│  │   │              Application Load Balancer           │   │   │
+│  │   │  HTTPS:443 (ACM) │ HTTP:80 (→ HTTPS redirect)  │   │   │
+│  │   └──────────────────────────┬──────────────────────┘   │   │
+│  │                              │                          │   │
+│  │   ┌──────────────────────────┴──────────────────────┐   │   │
+│  │   │              ECS Fargate Service                  │   │   │
+│  │   │         Desired Count: 2 │ Auto-scaling         │   │   │
+│  │   │  ┌─────────────┐  ┌─────────────┐               │   │   │
+│  │   │  │  Task #1    │  │  Task #2    │               │   │   │
+│  │   │  │  :3000      │  │  :3000      │               │   │   │
+│  │   │  └─────────────┘  └─────────────┘               │   │   │
+│  │   └──────────────────────────────────────────────────┘   │   │
+│  │                              │                          │   │
+│  │                              ▼                          │   │
+│  │   ┌──────────────────────────────────────────────────┐  │   │
+│  │   │              CloudWatch Logs                      │  │   │
+│  │   │              /ecs/payment-api                     │  │   │
+│  │   └──────────────────────────────────────────────────┘  │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                              │                                 │
+│                              ▼                                 │
+│  ┌────────────────────────────────────────────────────────┐    │
+│  │                      ECR Repository                      │    │
+│  │                   node-microservice                      │    │
+│  └────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
 ```
+
+### Terraform Structure
+
+```
+infrastructure/terraform/
+├── environments/
+│   ├── dev/                    # Development environment
+│   │   └── main.tf
+│   └── prod/                   # Production environment
+├── modules/
+│   ├── vpc/                    # VPC with public subnets
+│   ├── ecr/                    # ECR repository
+│   ├── ecs/                    # ECS Fargate cluster & service
+│   └── alb/                    # Application Load Balancer
+├── main.tf                     # Provider configuration
+├── variables.tf
+└── outputs.tf
+```
+
 ---
 
 ## 📦 Tech Stack
 
-| Layer | Technology |
-|------|-------------|
-| Runtime | Node.js 20 |
-| Language | TypeScript |
-| Framework | Express |
-| Resilience | Opossum (Circuit Breaker) |
-| Validation | Zod |
-| Logging | Pino |
-| Monorepo | pnpm + Turborepo |
-| Containerization | Docker |
-| Load Testing | k6 |
+| Layer            | Technology       | Purpose                   |
+| ---------------- | ---------------- | ------------------------- |
+| Runtime          | Node.js 20       | JavaScript runtime        |
+| Language         | TypeScript 5     | Type safety               |
+| Framework        | Express 5        | HTTP server               |
+| Resilience       | Opossum          | Circuit Breaker pattern   |
+| Validation       | Zod 4            | Runtime schema validation |
+| Logging          | Pino             | Structured JSON logging   |
+| Monorepo         | pnpm + Turborepo | Build orchestration       |
+| Containerization | Docker           | Multi-stage builds        |
+| Load Testing     | k6               | Performance validation    |
+| IaC              | Terraform        | Infrastructure as Code    |
+| CI/CD            | GitHub Actions   | Automation                |
 
 ---
 
 ## 🔄 Request Flow
 
-1. Client sends a request to the **Payment API**.
-2. The API calls an external **Payment Provider**.
-3. The request is wrapped by a **Circuit Breaker**.
-4. If the provider fails repeatedly:
-   - The circuit transitions to **OPEN**.
-   - Calls are short-circuited immediately.
-5. After a cooldown period:
-   - Circuit transitions to **HALF-OPEN**.
-6. If the provider recovers:
-   - Circuit returns to **CLOSED** state.
+1. Client sends HTTPS request to **ALB DNS**
+2. ALB terminates SSL and routes to **ECS Fargate** tasks
+3. Express receives request → validates with **Zod**
+4. **Circuit Breaker** checks external Payment Provider status
+5. If provider healthy: Forward request, return `200 OK`
+6. If provider failing: Return `503` immediately (fail-fast)
+7. Response logged to **CloudWatch** with correlation ID
 
 ---
 
 ## 🛡️ Resilience Strategy
 
-This microservice demonstrates several production-grade resilience patterns.
+### Circuit Breaker (Opossum)
 
-### Circuit Breaker
+```
+CLOSED ──[50% errors]──► OPEN
+   ▲                         │
+   │                         │ [10s timeout]
+   │                         ▼
+   └──────[success]───── HALF-OPEN
+```
 
-Implemented using **Opossum** to prevent cascading failures.
-
-Benefits:
-
-- Prevents excessive retries to failing services
-- Protects Node.js event loop
-- Reduces external API rate limit penalties
+| State         | Behavior                                |
+| ------------- | --------------------------------------- |
+| **CLOSED**    | Normal operation, requests pass through |
+| **OPEN**      | All requests fail-fast, return 503      |
+| **HALF-OPEN** | Testing recovery, limited requests      |
 
 ### Fail-Fast Configuration
 
-Environment variables are validated using **Zod** at startup.
+Zod validates environment at startup:
 
-If configuration is invalid:
-
-- The service fails immediately
-- Prevents undefined behavior in production
+```typescript
+const envSchema = z.object({
+  NODE_ENV: z.enum(["development", "production", "test"]),
+  PORT: z.string().transform(Number),
+  STRIPE_API_URL: z.string().url(),
+  LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]),
+});
+```
 
 ### Graceful Shutdown
 
-Handles:
-
-- `SIGTERM`
-- `SIGINT`
-
-Ensuring:
-
-- Active HTTP requests finish
-- Database connections close safely
-- Zero-downtime deployments in Kubernetes or ECS
+- `SIGTERM` / `SIGINT` handlers
+- Drain HTTP connections before exit
+- Zero-downtime deployments
 
 ---
 
 ## 📊 Observability
 
-### Structured Logging
-
-Logging is implemented with **Pino**, producing structured JSON logs.
-
-Features:
-
-- High-performance logging
-- PII redaction
-- Ready for aggregation systems such as:
-  - Datadog
-  - ELK Stack
-  - Loki
-
-Example log:
+### Structured Logging (Pino)
 
 ```json
 {
-  "level": "info",
-  "service": "payment-api",
+  "level": 30,
+  "time": "2026-03-26T12:00:00.000Z",
+  "pid": 1234,
+  "hostname": "ecs-task",
   "msg": "Payment processed",
-  "requestId": "123abc"
+  "requestId": "req-abc123",
+  "amount": 1000,
+  "currency": "usd",
+  "duration": 45
 }
 ```
 
+### PII Redaction
+
+Automatically redacts sensitive fields:
+
+- `authorization`
+- `creditCardNumber`
+- `password`
+
 ---
 
-## 🏗️ Project Topology
+## 🏗️ Project Structure
 
-Structured as a monorepo to isolate domains and share configurations efficiently:
-
-```text
+```
 .
 ├── apps/
 │   └── payment-api/
 │       ├── src/
-│       ├── load-test/
-│       └── .env.example
-│
-├── packages/
-│   ├── eslint-config/
-│   └── typescript-config/
-│
-├── turbo.json
-├── pnpm-workspace.yaml
-└── package.json
+│       │   ├── config/          # Environment validation
+│       │   ├── domain/          # Business entities
+│       │   ├── application/     # Use cases
+│       │   └── infrastructure/  # External integrations
+│       │       └── http/
+│       │           ├── providers/      # Stripe provider (Circuit Breaker)
+│       │           ├── middlewares/    # Error handler, rate limiter
+│       │           └── observability/  # Pino logger
+│       └── tests/
+│           └── load-test.js     # k6 load test
+├── infrastructure/
+│   └── terraform/              # AWS infrastructure
+├── .github/
+│   └── workflows/
+│       └── ci.yml             # CI/CD pipeline
+├── .eslintrc.json             # ESLint configuration
+├── turbo.json                 # Turborepo config
+└── pnpm-workspace.yaml        # pnpm workspaces
 ```
 
 ---
@@ -188,85 +260,188 @@ Structured as a monorepo to isolate domains and share configurations efficiently
 
 - Node.js >= 20.x
 - pnpm >= 9.x
-- Docker
+- Docker (optional)
 
-### Local Development
+### Quick Start
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/dnwest/resilient-microservice.git
+# Clone the repository
+git clone https://github.com/dnwest/resilient-node-microservice.git
+cd resilient-node-microservice
 
-# 2. Enter the project
-cd resilient-microservice
-
-# 3. Install dependencies (Workspace root)
+# Install dependencies
 pnpm install
 
-# 4. Setup environment variables
+# Copy environment file
 cp apps/payment-api/.env.example apps/payment-api/.env
 
-# 5. Start the development server
-pnpm run dev
+# Start development server
+pnpm dev
+
+# Run tests
+pnpm test
+
+# Run linter
+pnpm lint
+```
+
+### Environment Variables
+
+```bash
+# apps/payment-api/.env
+NODE_ENV=development
+PORT=3000
+STRIPE_API_URL=https://api.stripe.com/v1
+LOG_LEVEL=debug
 ```
 
 ---
 
-## 🧪 Proving Resilience (Load Testing)
+## 🧪 Testing
 
-This repository includes a **k6 load test script** to simulate a traffic spike and demonstrate the Circuit Breaker in action.
-
-Start the API in one terminal:
+### Unit & Integration Tests
 
 ```bash
-pnpm run dev
+# Run all tests
+pnpm test
+
+# Run tests in watch mode
+pnpm test:watch
+
+# Run with coverage
+cd apps/payment-api && pnpm test
 ```
 
-In a second terminal, execute the load test:
+**Coverage Areas:**
+
+- Circuit Breaker logic (states, fallback, events)
+- Zod schema validation
+- Pino logger (structured logging, PII redaction)
+
+### Load Testing (k6)
 
 ```bash
+# Start the API
+pnpm dev
+
+# In another terminal, run k6
 cd apps/payment-api
-pnpm run test:load
+pnpm test:load
 ```
 
-Validates resilience behavior under load: `200` (CLOSED) and `503` (OPEN) without blocking the service.
+Expected results:
 
-![k6 load test results](./apps/payment-api/tests/k6-load-test.webp)
-
-When the simulated external API fails, the service immediately returns:
-
-```
-503 Service Unavailable
-```
-
-instead of blocking the Node.js event loop.
+- `200 OK` when circuit is CLOSED
+- `503 Service Unavailable` when circuit is OPEN
 
 ---
 
 ## 🐳 Docker
 
-Build and run the production container:
+### Build & Run
 
 ```bash
-# Build the optimized image
-docker build -t payment-api:production .
+# Build production image
+docker build -t payment-api:production -f apps/payment-api/Dockerfile .
 
-# Run the container
-docker run -p 3000:3000 --env-file apps/payment-api/.env payment-api:production
+# Run container
+docker run -p 3000:3000 \
+  --env-file apps/payment-api/.env \
+  payment-api:production
+```
+
+### Docker Compose (Development)
+
+```bash
+docker compose up --build
 ```
 
 ---
 
-## 🚀 Future Improvements
+## 🚢 Deployment
 
-- Retry with exponential backoff
-- Distributed tracing (OpenTelemetry)
-- Metrics with Prometheus
-- Health check endpoints for Kubernetes
-- Rate limiting for API protection
+### Terraform (AWS)
+
+```bash
+cd infrastructure/terraform/environments/dev
+
+# Initialize Terraform
+terraform init
+
+# Plan changes
+terraform plan
+
+# Apply infrastructure
+terraform apply
+```
+
+**Note:** Update `certificate_arn` in `dev/main.tf` with your ACM certificate.
+
+### ECS Deployment
+
+```bash
+# Build and push to ECR
+aws ecr get-login-password | docker login --username AWS --password-stdin $ECR_REGISTRY
+docker build -t $ECR_REGISTRY/node-microservice:latest .
+docker push $ECR_REGISTRY/node-microservice:latest
+
+# Update ECS service (triggers rolling deployment)
+aws ecs update-service --cluster microservices-cluster --service node-service --force-new-deployment
+```
+
+---
+
+## 🔧 Development Workflow
+
+```bash
+# 1. Create feature branch
+git checkout -b feature/my-feature
+
+# 2. Make changes and test
+pnpm test
+pnpm lint
+
+# 3. Commit (conventional commits)
+git commit -m "feat(provider): add retry logic"
+
+# 4. Push and create PR
+git push origin feature/my-feature
+```
+
+### Commit Convention
+
+| Type       | Description      |
+| ---------- | ---------------- |
+| `feat`     | New feature      |
+| `fix`      | Bug fix          |
+| `test`     | Tests            |
+| `ci`       | CI/CD            |
+| `docs`     | Documentation    |
+| `refactor` | Code refactoring |
+| `chore`    | Maintenance      |
+
+---
+
+## 📈 Future Improvements
+
+- [ ] Retry with exponential backoff
+- [ ] Distributed tracing (OpenTelemetry)
+- [ ] Prometheus metrics endpoint
+- [ ] Rate limiting middleware
+- [ ] Database integration (PostgreSQL)
+- [ ] Redis for distributed caching
+- [ ] Blue/Green deployments
+- [ ] AWS CodePipeline integration
+
+---
+
+## 📄 License
+
+MIT License - See [LICENSE](LICENSE) for details.
 
 ---
 
 ## 👨‍💻 Author
 
-Cristian Fernandes  
+**Cristian Fernandes**  
 Senior Software Engineer
