@@ -1,23 +1,24 @@
 # --- Stage 1: Prune (Extract only the necessary workspace packages) ---
 FROM node:20-alpine AS builder
-# Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
 RUN apk add --no-cache libc6-compat
 RUN apk update
 WORKDIR /app
-RUN corepack enable pnpm
-RUN pnpm setup
+ENV PNPM_HOME=/pnpm
+ENV PATH=/pnpm:$PATH
+RUN corepack enable && corepack prepare pnpm@9.1.0 --activate && pnpm setup
 
 COPY . .
 # This extracts only the payment-api and its internal dependencies
-RUN turbo prune payment-api --docker
+RUN pnpm turbo prune payment-api --docker
 
 # --- Stage 2: Installer (Install dependencies) ---
 FROM node:20-alpine AS installer
 RUN apk add --no-cache libc6-compat
 RUN apk update
 WORKDIR /app
-RUN corepack enable pnpm
-RUN pnpm setup
+ENV PNPM_HOME=/pnpm
+ENV PATH=/pnpm:$PATH
+RUN corepack enable && corepack prepare pnpm@9.1.0 --activate && pnpm setup
 
 # First install the dependencies (as they change less often)
 COPY .gitignore .gitignore
