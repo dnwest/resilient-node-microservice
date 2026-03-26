@@ -125,12 +125,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Debug - List built files and node_modules
-        run: |
-          docker run --rm payment-api:test ls -la dist/infrastructure/http/observability/ || echo "dist not found"
-          docker run --rm payment-api:test ls -la node_modules/ | head -20 || echo "node_modules not found"
-          docker run --rm payment-api:test ls node_modules/ | grep dotenv || echo "dotenv not in node_modules"
-
       - name: Run Health Check
         run: |
           docker run -d --name payment-api-test \
