@@ -1,5 +1,5 @@
 import pino from "pino";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 
 const PII_FIELDS = ["authorization", "creditCardNumber", "password"];
 
@@ -29,11 +29,9 @@ const createTestLogger = (level: string = "info") => {
 
 describe("Logger", () => {
   let logger: pino.Logger;
-  let consoleSpy: any;
 
   beforeEach(() => {
     logger = createTestLogger("info");
-    consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
   });
 
   describe("Log Levels", () => {
