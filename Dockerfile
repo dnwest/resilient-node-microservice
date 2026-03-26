@@ -5,7 +5,7 @@ RUN apk add --no-cache libc6-compat
 RUN apk update
 WORKDIR /app
 RUN corepack enable pnpm
-RUN pnpm i -g turbo
+RUN pnpm setup
 
 COPY . .
 # This extracts only the payment-api and its internal dependencies
@@ -17,6 +17,7 @@ RUN apk add --no-cache libc6-compat
 RUN apk update
 WORKDIR /app
 RUN corepack enable pnpm
+RUN pnpm setup
 
 # First install the dependencies (as they change less often)
 COPY .gitignore .gitignore
