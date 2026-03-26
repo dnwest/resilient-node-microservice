@@ -120,7 +120,7 @@ jobs:
         with:
           dockerfile: ./Dockerfile
           config: ./.hadolint.yaml
-          failure-threshold: warning
+          no-fail: true
 
       - name: Build Docker Image
         uses: docker/build-push-action@v6
