@@ -1,23 +1,23 @@
 # --- Stage 1: Install dependencies ---
 FROM node:22-alpine AS deps
-RUN apk add --no-cache libc6-compat bash
 WORKDIR /app
 ENV PNPM_HOME=/pnpm
 ENV PATH=/pnpm:$PATH
-ENV SHELL=/bin/bash
-RUN corepack enable && corepack prepare pnpm@9.1.0 --activate
+RUN apk add --no-cache --no-recommends libc6-compat bash \
+    && corepack enable \
+    && corepack prepare pnpm@9.1.0 --activate
 
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
 # --- Stage 2: Builder ---
 FROM node:22-alpine AS builder
-RUN apk add --no-cache libc6-compat bash
 WORKDIR /app
 ENV PNPM_HOME=/pnpm
 ENV PATH=/pnpm:$PATH
-ENV SHELL=/bin/bash
-RUN corepack enable && corepack prepare pnpm@9.1.0 --activate
+RUN apk add --no-cache --no-recommends libc6-compat bash \
+    && corepack enable \
+    && corepack prepare pnpm@9.1.0 --activate
 
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
@@ -29,8 +29,9 @@ RUN pnpm turbo run build --filter=payment-api...
 FROM node:22-alpine AS runner
 WORKDIR /app
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 expressjs
+RUN addgroup --system --gid 1001 nodejs \
+    && adduser --system --uid 1001 expressjs
+
 USER expressjs
 
 COPY --from=deps /app/node_modules ./node_modules
