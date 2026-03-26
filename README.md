@@ -28,26 +28,26 @@ In distributed systems, external dependencies (like Payment Gateways or third-pa
                         │ HTTPS
                         ▼
                 ┌──────────────────┐
-                │   AWS ALB       │
-                │   (HTTPS/HTTP)  │
+                │   AWS ALB        │
+                │   (HTTPS/HTTP)   │
                 └────────┬─────────┘
                          │
                          ▼
                 ┌──────────────────┐
                 │  AWS ECS Fargate │
-                │   (Auto-scaling)│
+                │  (Auto-scaling)  │
                 └────────┬─────────┘
                          │
                          ▼
                 ┌──────────────────┐
                 │   Payment API    │
-                │     (Express)   │
+                │     (Express)    │
                 └────────┬─────────┘
                          │
                          ▼
                 ┌──────────────────┐
                 │  Circuit Breaker │
-                │    (Opossum)    │
+                │    (Opossum)     │
                 └────────┬─────────┘
                          │
              ┌───────────┴───────────┐
