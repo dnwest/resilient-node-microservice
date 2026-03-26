@@ -115,6 +115,11 @@ jobs:
           name: dist
           path: apps/payment-api/dist/
 
+      - name: Validate Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: ./Dockerfile
+
       - name: Build Docker Image
         uses: docker/build-push-action@v6
         with:
