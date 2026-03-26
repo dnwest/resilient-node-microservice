@@ -8,8 +8,7 @@ ENV SHELL=/bin/bash
 RUN corepack enable && corepack prepare pnpm@9.1.0 --activate
 
 COPY package.json pnpm-lock.yaml ./
-COPY apps/payment-api/package.json ./apps/payment-api/
-RUN pnpm install --frozen-lockfile --filter payment-api
+RUN pnpm install --frozen-lockfile
 
 # --- Stage 2: Builder ---
 FROM node:22-alpine AS builder
@@ -21,8 +20,7 @@ ENV SHELL=/bin/bash
 RUN corepack enable && corepack prepare pnpm@9.1.0 --activate
 
 COPY package.json pnpm-lock.yaml ./
-COPY apps/payment-api/package.json ./apps/payment-api/
-RUN pnpm install --frozen-lockfile --filter payment-api
+RUN pnpm install --frozen-lockfile
 
 COPY . .
 RUN pnpm turbo run build --filter=payment-api...
@@ -36,7 +34,6 @@ RUN adduser --system --uid 1001 expressjs
 USER expressjs
 
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/apps/payment-api/node_modules ./node_modules/apps/payment-api/node_modules
 COPY --from=builder /app/apps/payment-api/dist ./dist
 COPY --from=builder /app/apps/payment-api/package.json ./package.json
 
