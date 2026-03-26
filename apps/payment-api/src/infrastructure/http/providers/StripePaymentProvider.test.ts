@@ -1,5 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import CircuitBreaker from "opossum";
-import axios from "axios";
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { StripePaymentProvider } from "./StripePaymentProvider";
 
@@ -12,7 +12,6 @@ const { loggerMock } = vi.hoisted(() => ({
 }));
 
 vi.mock("opossum");
-vi.mock("axios");
 vi.mock("../../../config/env", () => ({
   env: {
     NODE_ENV: "test",
