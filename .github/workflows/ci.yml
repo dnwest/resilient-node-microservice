@@ -116,7 +116,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: apps/payment-api/Dockerfile
+          file: Dockerfile
           load: true
           tags: payment-api:test
           cache-from: type=gha
