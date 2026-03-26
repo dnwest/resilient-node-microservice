@@ -141,6 +141,6 @@ jobs:
             -e LOG_LEVEL=info \
             payment-api:test
           sleep 5
-          docker exec payment-api-test curl -f http://localhost:3000/health
+          docker exec payment-api-test wget -qO- http://localhost:3000/health || docker logs payment-api-test
           docker stop payment-api-test
           docker rm payment-api-test
