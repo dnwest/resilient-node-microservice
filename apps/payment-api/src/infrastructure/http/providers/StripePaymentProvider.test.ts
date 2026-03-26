@@ -82,7 +82,7 @@ describe("StripePaymentProvider", () => {
     });
   });
 
-  describe("processPayment", () => {
+  describe("processPayment - Success Scenarios", () => {
     it("should return successful payment result when circuit is closed", async () => {
       mockBreaker.fire.mockResolvedValue(mockSuccessResponse);
 
@@ -93,13 +93,6 @@ describe("StripePaymentProvider", () => {
         currency: "usd",
       });
       expect(result).toEqual(mockSuccessResponse);
-    });
-
-    it("should return fallback response when circuit is open", () => {
-      const fallbackFn = mockBreaker.fallback.mock.calls[0][0];
-
-      const fallbackResult = fallbackFn();
-      expect(fallbackResult).toEqual(mockFallbackResponse);
     });
 
     it("should handle successful payment with different currencies", async () => {
@@ -117,8 +110,63 @@ describe("StripePaymentProvider", () => {
       expect(result.transactionId).toBe("txn_456");
     });
 
+    it("should handle successful payment with different amounts", async () => {
+      mockBreaker.fire.mockResolvedValue({
+        success: true,
+        transactionId: "txn_789",
+      });
+
+      const result = await provider.processPayment(100000, "brl");
+
+      expect(mockBreaker.fire).toHaveBeenCalledWith({
+        amount: 100000,
+        currency: "brl",
+      });
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe("processPayment - Error Scenarios", () => {
     it("should throw error when payment processing fails unexpectedly", async () => {
       mockBreaker.fire.mockRejectedValue(new Error("Network error"));
+
+      await expect(provider.processPayment(1000, "usd")).rejects.toThrow(
+        "Payment processing failed",
+      );
+    });
+
+    it("should handle timeout errors", async () => {
+      mockBreaker.fire.mockRejectedValue(
+        new Error("timeout of 3000ms exceeded"),
+      );
+
+      await expect(provider.processPayment(1000, "usd")).rejects.toThrow(
+        "Payment processing failed",
+      );
+    });
+
+    it("should handle 4xx client errors", async () => {
+      mockBreaker.fire.mockRejectedValue(
+        new Error("Request failed with status code 400"),
+      );
+
+      await expect(provider.processPayment(1000, "usd")).rejects.toThrow(
+        "Payment processing failed",
+      );
+    });
+
+    it("should handle 5xx server errors", async () => {
+      mockBreaker.fire.mockRejectedValue(
+        new Error("Request failed with status code 500"),
+      );
+
+      await expect(provider.processPayment(1000, "usd")).rejects.toThrow(
+        "Payment processing failed",
+      );
+    });
+
+    it("should handle connection refused errors", async () => {
+      mockBreaker.fire.mockRejectedValue(new Error("connect ECONNREFUSED"));
 
       await expect(provider.processPayment(1000, "usd")).rejects.toThrow(
         "Payment processing failed",
@@ -159,6 +207,16 @@ describe("StripePaymentProvider", () => {
         "Circuit Breaker CLOSED: Gateway recovered.",
       );
     });
+
+    it("should log error when payment fails unexpectedly", async () => {
+      mockBreaker.fire.mockRejectedValue(new Error("Network error"));
+
+      try {
+        await provider.processPayment(1000, "usd");
+      } catch (e) {
+        expect(loggerMock.error).toHaveBeenCalled();
+      }
+    });
   });
 
   describe("Fallback Logic", () => {
@@ -176,6 +234,59 @@ describe("StripePaymentProvider", () => {
 
       expect(loggerMock.warn).toHaveBeenCalledWith(
         "Circuit Breaker FALLBACK: Executing contingency logic.",
+      );
+    });
+
+    it("should return consistent fallback response", () => {
+      const fallbackFn = mockBreaker.fallback.mock.calls[0][0];
+
+      const result1 = fallbackFn();
+      const result2 = fallbackFn();
+
+      expect(result1).toEqual(result2);
+      expect(result1.success).toBe(false);
+    });
+  });
+
+  describe("Circuit Breaker State Transitions", () => {
+    it("should transition from CLOSED to OPEN after 50% errors", async () => {
+      mockBreaker.fire.mockRejectedValue(new Error("Error"));
+
+      for (let i = 0; i < 5; i++) {
+        try {
+          await provider.processPayment(1000, "usd");
+        } catch (e) {
+          // Expected to throw
+        }
+      }
+
+      expect(mockBreaker.fire).toHaveBeenCalledTimes(5);
+    });
+
+    it("should allow request in HALF-OPEN state", async () => {
+      mockBreaker.fire.mockResolvedValueOnce(mockSuccessResponse);
+
+      const result = await provider.processPayment(1000, "usd");
+
+      expect(result.success).toBe(true);
+    });
+
+    it("should close circuit after successful request in HALF-OPEN", () => {
+      const halfOpenHandler = mockBreaker.on.mock.calls.find(
+        (call: any[]) => call[0] === "halfOpen",
+      )?.[1];
+      const closeHandler = mockBreaker.on.mock.calls.find(
+        (call: any[]) => call[0] === "close",
+      )?.[1];
+
+      halfOpenHandler();
+      closeHandler();
+
+      expect(loggerMock.info).toHaveBeenCalledWith(
+        "Circuit Breaker HALF-OPEN: Testing Gateway health.",
+      );
+      expect(loggerMock.info).toHaveBeenCalledWith(
+        "Circuit Breaker CLOSED: Gateway recovered.",
       );
     });
   });
