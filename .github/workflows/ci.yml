@@ -133,15 +133,14 @@ jobs:
 
       - name: Run Health Check
         run: |
-          set -x
-          docker run -d --name payment-api-test -p 3333:3000 payment-api:test
-          echo "Container started, waiting..."
-          sleep 10
-          echo "Container status:"
-          docker ps -a
-          echo "Container logs:"
-          docker logs payment-api-test || echo "No logs available"
-          echo "Testing health endpoint..."
-          docker exec payment-api-test curl -f http://localhost:3000/health || (docker logs payment-api-test && exit 1)
+          docker run -d --name payment-api-test \
+            -p 3333:3000 \
+            -e NODE_ENV=production \
+            -e PORT=3000 \
+            -e STRIPE_API_URL=https://api.stripe.com/v1 \
+            -e LOG_LEVEL=info \
+            payment-api:test
+          sleep 5
+          docker exec payment-api-test curl -f http://localhost:3000/health
           docker stop payment-api-test
           docker rm payment-api-test
