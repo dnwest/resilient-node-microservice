@@ -5,7 +5,7 @@ WORKDIR /app
 ENV PNPM_HOME=/pnpm
 ENV PATH=/pnpm:$PATH
 ENV SHELL=/bin/bash
-RUN corepack enable && corepack prepare pnpm@9.1.0 --activate
+RUN corepack enable && corepack prepare pnpm@9.1.0 --activate && pnpm add -g turbo
 
 COPY . .
 # This extracts only the payment-api and its internal dependencies
