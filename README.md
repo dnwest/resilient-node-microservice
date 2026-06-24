@@ -126,6 +126,19 @@ apps/payment-api/src/
     └── observability/   # Pino logger
 ```
 
+## Roadmap
+
+The core resilience stack above — Circuit Breaker, graceful shutdown, rate limiting,
+Terraform (VPC/ECS/ECR/ALB), CI, and 77 passing tests — is implemented and verifiable
+today. Planned enhancements (reflected as the **target state** in the extended
+architecture diagram; **not yet wired**):
+
+- [ ] **Distributed rate limiting** — back the limiter with Redis (token bucket) so limits hold across instances behind the ALB
+- [ ] **Idempotency keys** — safe client retries without double-charging
+- [ ] **Persistence** — MongoDB for payment records and auditability
+- [ ] **Deeper readiness probe** — verify downstream dependencies, not just liveness
+- [ ] **Exported metrics** — request rate, latency, breaker state, rate-limit rejections
+
 ## License
 
 MIT - See [LICENSE](LICENSE)
