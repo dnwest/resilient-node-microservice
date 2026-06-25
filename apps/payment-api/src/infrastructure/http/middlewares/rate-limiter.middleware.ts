@@ -3,12 +3,19 @@ import type { IRateLimiterStore } from "../../rate-limiting/rate-limiter-store.i
 
 export type KeyGenerator = (req: Request) => string;
 
+export interface RateLimiterOptions {
+  keyGenerator?: KeyGenerator;
+  onRejected?: (req: Request) => void;
+}
+
 const byClientIp: KeyGenerator = (req) => req.ip ?? "unknown";
 
 export function rateLimiter(
   store: IRateLimiterStore,
-  keyGenerator: KeyGenerator = byClientIp,
+  options: RateLimiterOptions = {},
 ) {
+  const keyGenerator = options.keyGenerator ?? byClientIp;
+
   return async (
     req: Request,
     res: Response,
@@ -24,6 +31,7 @@ export function rateLimiter(
     );
 
     if (!result.allowed) {
+      options.onRejected?.(req);
       const retryAfterSeconds = Math.ceil(result.retryAfterMs / 1000);
       res.setHeader("Retry-After", String(retryAfterSeconds));
       res.status(429).json({

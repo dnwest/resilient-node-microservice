@@ -8,12 +8,17 @@ import { InMemoryIdempotencyStore } from "../idempotency/in-memory-idempotency-s
 import { rateLimiter } from "./middlewares/rate-limiter.middleware";
 import { InMemoryTokenBucketStore } from "../rate-limiting/in-memory-token-bucket-store";
 import { readinessHandler } from "./health/readiness.handler";
+import { createMetrics, metricsHandler } from "./observability/metrics";
+import { httpMetrics } from "./middlewares/metrics.middleware";
 
 const app = express();
 // Honour X-Forwarded-For so req.ip is the real client behind the ALB.
 app.set("trust proxy", true);
 app.use(express.json());
 app.use(pinoHttp({ logger })); // Injects correlation IDs and logs requests
+
+const metrics = createMetrics();
+app.use(httpMetrics(metrics));
 
 const paymentProvider = new StripePaymentProvider();
 const idempotencyStore = new InMemoryIdempotencyStore(
@@ -24,6 +29,12 @@ const rateLimiterStore = new InMemoryTokenBucketStore({
   refillTokens: env.RATE_LIMIT_REFILL_PER_SECOND,
   refillIntervalMs: 1000,
 });
+
+metrics.observeCircuitBreaker("payment-gateway", () =>
+  paymentProvider.getBreakerState(),
+);
+
+app.get("/metrics", metricsHandler(metrics));
 
 // Liveness: the process is up and serving. Used by the ALB target group.
 app.get("/health", (_req, res) => {
@@ -44,7 +55,10 @@ app.get(
 
 app.post(
   "/api/v1/payments",
-  rateLimiter(rateLimiterStore),
+  rateLimiter(rateLimiterStore, {
+    onRejected: () =>
+      metrics.rateLimitRejectionsTotal.inc({ route: "/api/v1/payments" }),
+  }),
   idempotency(idempotencyStore),
   async (req, res) => {
     const { amount, currency } = req.body;

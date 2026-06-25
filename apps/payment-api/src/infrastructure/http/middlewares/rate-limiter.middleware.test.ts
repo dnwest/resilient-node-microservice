@@ -112,12 +112,42 @@ describe("rateLimiter middleware", () => {
       retryAfterMs: 0,
     });
 
-    await rateLimiter(store, () => "tenant-42")(
+    await rateLimiter(store, { keyGenerator: () => "tenant-42" })(
       mockReq("1.2.3.4"),
       mockRes(),
       next,
     );
 
     expect(store.consume).toHaveBeenCalledWith("tenant-42");
+  });
+
+  it("invokes onRejected only when the request is throttled", async () => {
+    const onRejected = vi.fn();
+    const allowing = storeReturning({
+      allowed: true,
+      remaining: 1,
+      limit: 20,
+      retryAfterMs: 0,
+    });
+    const rejecting = storeReturning({
+      allowed: false,
+      remaining: 0,
+      limit: 20,
+      retryAfterMs: 100,
+    });
+
+    await rateLimiter(allowing, { onRejected })(
+      mockReq("1.2.3.4"),
+      mockRes(),
+      next,
+    );
+    expect(onRejected).not.toHaveBeenCalled();
+
+    await rateLimiter(rejecting, { onRejected })(
+      mockReq("1.2.3.4"),
+      mockRes(),
+      next,
+    );
+    expect(onRejected).toHaveBeenCalledTimes(1);
   });
 });

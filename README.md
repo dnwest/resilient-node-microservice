@@ -2,7 +2,7 @@
 
 ![Node.js](https://img.shields.io/badge/Node.js-22.x-green)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)
-![Tests](https://img.shields.io/badge/Tests-117%20passing-success)
+![Tests](https://img.shields.io/badge/Tests-125%20passing-success)
 ![ESLint](https://img.shields.io/badge/ESLint-Passing-4B32C3)
 ![CI](https://github.com/dnwest/resilient-node-microservice/actions/workflows/ci.yml/badge.svg)
 
@@ -29,6 +29,7 @@ Client → ALB → ECS Fargate → Express (Zod validation)
 | Resilience | Opossum (CB)     |
 | Validation | Zod 4            |
 | Logging    | Pino             |
+| Metrics    | prom-client      |
 | Monorepo   | pnpm + Turborepo |
 | Container  | Docker           |
 | IaC        | Terraform        |
@@ -70,6 +71,21 @@ breaker observes the final outcome:
 - Bounded retries: `GATEWAY_MAX_RETRIES` with `GATEWAY_RETRY_BASE_MS` backoff
 - Retries only on transient failures (network/timeout, `5xx`, `429`); other `4xx`
   fail fast (no retry on deterministic client errors)
+
+### Metrics (Prometheus)
+
+`GET /metrics` exposes Prometheus metrics via `prom-client` (plus default
+process/Node metrics — CPU, memory, event-loop lag):
+
+| Metric                            | Type      | What it answers                          |
+| --------------------------------- | --------- | ---------------------------------------- |
+| `http_requests_total`             | counter   | Request rate & error rate (by status)    |
+| `http_request_duration_seconds`   | histogram | Latency distribution (p50/p95/p99)       |
+| `circuit_breaker_state`           | gauge     | Gateway breaker: `0` closed / `1` half-open / `2` open |
+| `rate_limit_rejections_total`     | counter   | Throttled (`429`) requests               |
+
+Breaker state is exported via a pull-based gauge (read at scrape time), so the
+endpoint always reflects the live state without event wiring.
 
 ### Graceful Shutdown
 
@@ -206,7 +222,7 @@ apps/payment-api/src/
         ├── providers/       # Stripe: Circuit Breaker + timeout/retry
         ├── middlewares/     # Error handler, idempotency, rate limiter
         ├── health/          # Readiness probe (dependency checks)
-        └── observability/   # Pino logger
+        └── observability/   # Pino logger + Prometheus metrics
 ```
 
 ## Roadmap
@@ -220,7 +236,7 @@ architecture diagram; **not yet wired**):
 - [x] **Idempotency keys** — safe client retries without double-charging _(in-memory, single-instance; distributed store pending #1)_
 - [ ] **Persistence** — MongoDB for payment records and auditability
 - [x] **Readiness probe** — `/ready` verifies downstream dependencies (gateway breaker state), distinct from liveness `/health`
-- [ ] **Exported metrics** — request rate, latency, breaker state, rate-limit rejections
+- [x] **Exported metrics** — `/metrics` (Prometheus) with request rate, latency, breaker state, rate-limit rejections
 
 ## License
 

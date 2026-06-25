@@ -69,6 +69,12 @@ export class StripePaymentProvider implements IPaymentGateway {
     return !this.breaker.opened;
   }
 
+  public getBreakerState(): "closed" | "open" | "halfOpen" {
+    if (this.breaker.opened) return "open";
+    if (this.breaker.halfOpen) return "halfOpen";
+    return "closed";
+  }
+
   public async processPayment(
     amount: number,
     currency: string
