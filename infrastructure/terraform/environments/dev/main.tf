@@ -23,20 +23,20 @@ module "ecr" {
 module "alb" {
   source = "../../modules/alb"
 
-  prefix         = local.prefix
-  vpc_id         = module.vpc.vpc_id
-  subnets        = module.vpc.public_subnets
+  prefix          = local.prefix
+  vpc_id          = module.vpc.vpc_id
+  subnets         = module.vpc.public_subnets
   certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 }
 
 module "ecs" {
   source = "../../modules/ecs"
 
-  prefix            = local.prefix
-  image             = module.ecr.repository_url
-  subnets           = module.vpc.public_subnets
-  target_group_arn  = module.alb.target_group_arn
-  security_groups   = [module.alb.alb_security_group_id]
+  prefix           = local.prefix
+  image            = module.ecr.repository_url
+  subnets          = module.vpc.public_subnets
+  target_group_arn = module.alb.target_group_arn
+  security_groups  = [module.alb.alb_security_group_id]
 }
 
 output "alb_dns_name" {

@@ -59,18 +59,18 @@ resource "aws_ecs_task_definition" "app" {
 }
 
 resource "aws_ecs_service" "app" {
-  name            = "${var.prefix}-service"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.app.arn
-  desired_count   = 2
-  launch_type     = "FARGATE"
+  name                              = "${var.prefix}-service"
+  cluster                           = aws_ecs_cluster.main.id
+  task_definition                   = aws_ecs_task_definition.app.arn
+  desired_count                     = 2
+  launch_type                       = "FARGATE"
   health_check_grace_period_seconds = 60
 
   dynamic "load_balancer" {
     for_each = var.target_group_arn != null ? [1] : []
     content {
       target_group_arn = var.target_group_arn
-      container_name   = "${var.prefix}"
+      container_name   = var.prefix
       container_port   = 3000
     }
   }
