@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "Resilient Payment Microservice with Circuit Breaker and Observability",
+  "license": "MIT",
   "scripts": {
     "dev": "tsx watch src/infrastructure/http/server.ts",
     "build": "tsc",

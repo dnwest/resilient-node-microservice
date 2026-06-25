@@ -4,6 +4,7 @@
   "private": true,
   "description": "Enterprise-grade resilient microservices monorepo",
   "author": "Cristian Fernandes <cristian.daniel.fernandes@gmail.com>",
+  "license": "MIT",
   "engines": {
     "node": ">=22.0.0",
     "pnpm": ">=9.0.0"
