@@ -1,2 +1,5 @@
-ignoredWarnings:
+# Pinning Alpine system package versions (libc6-compat, bash) is brittle —
+# versions roll with each Alpine release and break the build. Intentionally
+# unpinned for these base utilities.
+ignored:
   - DL3018
