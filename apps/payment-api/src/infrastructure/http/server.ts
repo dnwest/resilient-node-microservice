@@ -7,6 +7,7 @@ import { idempotency } from "./middlewares/idempotency.middleware";
 import { InMemoryIdempotencyStore } from "../idempotency/in-memory-idempotency-store";
 import { rateLimiter } from "./middlewares/rate-limiter.middleware";
 import { InMemoryTokenBucketStore } from "../rate-limiting/in-memory-token-bucket-store";
+import { readinessHandler } from "./health/readiness.handler";
 
 const app = express();
 // Honour X-Forwarded-For so req.ip is the real client behind the ALB.
@@ -24,10 +25,22 @@ const rateLimiterStore = new InMemoryTokenBucketStore({
   refillIntervalMs: 1000,
 });
 
-// Healthcheck endpoint for Kubernetes Readiness/Liveness probes
+// Liveness: the process is up and serving. Used by the ALB target group.
 app.get("/health", (_req, res) => {
   res.status(200).json({ status: "UP", timestamp: new Date().toISOString() });
 });
+
+// Readiness: downstream dependencies are reachable. Flips to 503 when the
+// payment gateway's circuit breaker is open.
+app.get(
+  "/ready",
+  readinessHandler([
+    {
+      name: "payment-gateway",
+      check: async () => (paymentProvider.isAvailable() ? "up" : "down"),
+    },
+  ]),
+);
 
 app.post(
   "/api/v1/payments",

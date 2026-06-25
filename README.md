@@ -2,7 +2,7 @@
 
 ![Node.js](https://img.shields.io/badge/Node.js-22.x-green)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)
-![Tests](https://img.shields.io/badge/Tests-101%20passing-success)
+![Tests](https://img.shields.io/badge/Tests-117%20passing-success)
 ![ESLint](https://img.shields.io/badge/ESLint-Passing-4B32C3)
 ![CI](https://github.com/dnwest/resilient-node-microservice/actions/workflows/ci.yml/badge.svg)
 
@@ -47,6 +47,29 @@ CLOSED ──[50% errors]──► OPEN ──[10s]──► HALF-OPEN ──[su
 | CLOSED    | Normal operation      |
 | OPEN      | Fail-fast, return 503 |
 | HALF-OPEN | Test recovery         |
+
+### Health & Readiness
+
+| Endpoint  | Probe     | Semantics                                                      |
+| --------- | --------- | ------------------------------------------------------------- |
+| `/health` | Liveness  | Process is up and serving. Used by the ALB target group.      |
+| `/ready`  | Readiness | Downstream dependencies reachable; `503` when a dependency is down. |
+
+`/ready` reports per-dependency status and flips to `503 NOT_READY` once the
+payment gateway's circuit breaker trips open — so an orchestrator stops routing
+traffic to an instance whose dependency is unhealthy, without the ALB flapping on
+transient blips (that stays on liveness `/health`).
+
+### Gateway Timeouts & Retries
+
+The outbound payment call has an explicit per-attempt timeout and a bounded retry
+with exponential backoff. Retries run **inside** the circuit breaker, so the
+breaker observes the final outcome:
+
+- Per-attempt timeout: `GATEWAY_TIMEOUT_MS`
+- Bounded retries: `GATEWAY_MAX_RETRIES` with `GATEWAY_RETRY_BASE_MS` backoff
+- Retries only on transient failures (network/timeout, `5xx`, `429`); other `4xx`
+  fail fast (no retry on deterministic client errors)
 
 ### Graceful Shutdown
 
@@ -114,6 +137,19 @@ NODE_ENV=development
 PORT=3000
 STRIPE_API_URL=https://api.stripe.com/v1
 LOG_LEVEL=info
+
+# Idempotency
+IDEMPOTENCY_TTL_SECONDS=86400
+
+# Rate limiting (token bucket)
+RATE_LIMIT_CAPACITY=20
+RATE_LIMIT_REFILL_PER_SECOND=10
+
+# Gateway timeouts & retries
+GATEWAY_TIMEOUT_MS=2000
+GATEWAY_MAX_RETRIES=2
+GATEWAY_RETRY_BASE_MS=100
+GATEWAY_BREAKER_TIMEOUT_MS=8000
 ```
 
 ## Commands
@@ -167,8 +203,9 @@ apps/payment-api/src/
     ├── idempotency/     # IIdempotencyStore port + in-memory impl
     ├── rate-limiting/   # IRateLimiterStore port + token-bucket impl
     └── http/
-        ├── providers/       # Stripe with Circuit Breaker
+        ├── providers/       # Stripe: Circuit Breaker + timeout/retry
         ├── middlewares/     # Error handler, idempotency, rate limiter
+        ├── health/          # Readiness probe (dependency checks)
         └── observability/   # Pino logger
 ```
 
@@ -182,7 +219,7 @@ architecture diagram; **not yet wired**):
 - [x] **Token-bucket rate limiting** — real burst + refill algorithm with `429`/`Retry-After` _(in-memory, single-instance; Redis-backed distribution pending #1)_
 - [x] **Idempotency keys** — safe client retries without double-charging _(in-memory, single-instance; distributed store pending #1)_
 - [ ] **Persistence** — MongoDB for payment records and auditability
-- [ ] **Deeper readiness probe** — verify downstream dependencies, not just liveness
+- [x] **Readiness probe** — `/ready` verifies downstream dependencies (gateway breaker state), distinct from liveness `/health`
 - [ ] **Exported metrics** — request rate, latency, breaker state, rate-limit rejections
 
 ## License

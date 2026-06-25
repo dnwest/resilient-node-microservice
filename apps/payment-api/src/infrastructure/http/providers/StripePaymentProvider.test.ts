@@ -18,6 +18,10 @@ vi.mock("../../../config/env", () => ({
     PORT: 3000,
     STRIPE_API_URL: "https://api.stripe.com/v1",
     LOG_LEVEL: "info",
+    GATEWAY_TIMEOUT_MS: 2000,
+    GATEWAY_MAX_RETRIES: 2,
+    GATEWAY_RETRY_BASE_MS: 100,
+    GATEWAY_BREAKER_TIMEOUT_MS: 8000,
   },
 }));
 vi.mock("../observability/logger", () => ({
@@ -54,7 +58,7 @@ describe("StripePaymentProvider", () => {
 
       const constructorCall = (CircuitBreaker as any).mock.calls[0];
       expect(constructorCall[1]).toEqual({
-        timeout: 3000,
+        timeout: 8000,
         errorThresholdPercentage: 50,
         resetTimeout: 10000,
       });
@@ -75,6 +79,18 @@ describe("StripePaymentProvider", () => {
     it("should register fallback handler", () => {
       expect(mockBreaker.fallback).toHaveBeenCalledTimes(1);
       expect(mockBreaker.fallback).toHaveBeenCalledWith(expect.any(Function));
+    });
+  });
+
+  describe("isAvailable (readiness)", () => {
+    it("reports available when the breaker is closed", () => {
+      mockBreaker.opened = false;
+      expect(provider.isAvailable()).toBe(true);
+    });
+
+    it("reports unavailable when the breaker is open", () => {
+      mockBreaker.opened = true;
+      expect(provider.isAvailable()).toBe(false);
     });
   });
 

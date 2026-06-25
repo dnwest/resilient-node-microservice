@@ -9,6 +9,10 @@ const envSchema = z.object({
   IDEMPOTENCY_TTL_SECONDS: z.string().default('86400').transform(Number),
   RATE_LIMIT_CAPACITY: z.string().default('20').transform(Number),
   RATE_LIMIT_REFILL_PER_SECOND: z.string().default('10').transform(Number),
+  GATEWAY_TIMEOUT_MS: z.string().default('2000').transform(Number),
+  GATEWAY_MAX_RETRIES: z.string().default('2').transform(Number),
+  GATEWAY_RETRY_BASE_MS: z.string().default('100').transform(Number),
+  GATEWAY_BREAKER_TIMEOUT_MS: z.string().default('8000').transform(Number),
 });
 
 const _env = envSchema.safeParse(process.env);
