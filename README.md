@@ -2,7 +2,7 @@
 
 ![Node.js](https://img.shields.io/badge/Node.js-22.x-green)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)
-![Tests](https://img.shields.io/badge/Tests-125%20passing-success)
+![Tests](https://img.shields.io/badge/Tests-138%20passing-success)
 ![ESLint](https://img.shields.io/badge/ESLint-Passing-4B32C3)
 ![CI](https://github.com/dnwest/resilient-node-microservice/actions/workflows/ci.yml/badge.svg)
 
@@ -185,12 +185,15 @@ pnpm dev           # Development server
 
 ## Testing
 
-77 unit tests covering:
+138 tests (unit + Redis integration) covering:
 
-- Circuit Breaker states & transitions
-- Zod schema validation
-- Pino structured logging
-- Health check & graceful shutdown
+- Circuit Breaker states & transitions, gateway timeout/retry
+- Idempotency & token-bucket rate limiting (in-memory + Redis)
+- Health/readiness probes & graceful shutdown
+- Prometheus metrics, Zod validation, Pino logging
+
+> The Redis integration suite runs when `REDIS_URL` is set (CI service container
+> or `docker compose up -d redis`); it is skipped otherwise.
 
 ## Docker
 
@@ -235,10 +238,10 @@ apps/payment-api/src/
 
 ## Roadmap
 
-The core resilience stack above — Circuit Breaker, graceful shutdown, rate limiting,
-Terraform (VPC/ECS/ECR/ALB), CI, and 77 passing tests — is implemented and verifiable
-today. Planned enhancements (reflected as the **target state** in the extended
-architecture diagram; **not yet wired**):
+The core resilience stack above is implemented and verifiable today, backed by
+138 passing tests. The checklist below tracks progress toward the extended
+architecture diagram — most items are shipped; MongoDB persistence is the
+remaining one:
 
 - [x] **Token-bucket rate limiting** — real burst + refill algorithm with `429`/`Retry-After`; distributed via Redis (atomic Lua) when `REDIS_URL` is set
 - [x] **Idempotency keys** — safe client retries without double-charging; distributed via Redis when `REDIS_URL` is set
