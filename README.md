@@ -206,7 +206,8 @@ terraform apply
 
 ## CI/CD
 
-GitHub Actions pipeline: lint → test → build → docker → hadolint
+GitHub Actions pipeline: lint → test (coverage-gated) → build → docker → hadolint,
+plus a parallel `terraform fmt -check` + `validate` job for the IaC.
 
 ## Project Structure
 
