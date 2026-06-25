@@ -2,7 +2,7 @@
 
 ![Node.js](https://img.shields.io/badge/Node.js-22.x-green)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)
-![Tests](https://img.shields.io/badge/Tests-77%20passing-success)
+![Tests](https://img.shields.io/badge/Tests-101%20passing-success)
 ![ESLint](https://img.shields.io/badge/ESLint-Passing-4B32C3)
 ![CI](https://github.com/dnwest/resilient-node-microservice/actions/workflows/ci.yml/badge.svg)
 
@@ -53,6 +53,49 @@ CLOSED ──[50% errors]──► OPEN ──[10s]──► HALF-OPEN ──[su
 - SIGTERM/SIGINT handlers
 - Connection draining
 - Zero-downtime deployments
+
+### Idempotency
+
+Send an `Idempotency-Key` header on `POST /api/v1/payments` to make client
+retries safe (no double-charging):
+
+```bash
+curl -X POST http://localhost:3000/api/v1/payments \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: 5f3b...c9" \
+  -d '{"amount": 1000, "currency": "usd"}'
+```
+
+| Scenario                            | Behavior                                      |
+| ----------------------------------- | --------------------------------------------- |
+| Same key + same body                | Replays stored response (`Idempotent-Replayed: true`), no second gateway call |
+| Same key + different body           | `409 Conflict`                                |
+| Same key while first is in flight   | `409 Conflict` + `Retry-After`                |
+| Failed attempt (non-2xx)            | Key released so the client can safely retry   |
+
+> Backed by an in-memory store keyed for **single-instance** correctness today,
+> behind the `IIdempotencyStore` port. Sharing it across instances (Redis) is
+> tracked in the roadmap (#1/#2).
+
+### Rate Limiting (Token Bucket)
+
+`POST /api/v1/payments` is protected by a token-bucket limiter keyed by client
+IP. Each client gets a bucket of `RATE_LIMIT_CAPACITY` tokens (the burst) that
+refills at `RATE_LIMIT_REFILL_PER_SECOND` (the sustained rate):
+
+```
+capacity (burst) ──drains per request──► 0 ──refills at N/sec──► capacity
+```
+
+| Outcome   | Response                                                         |
+| --------- | ---------------------------------------------------------------- |
+| Allowed   | `X-RateLimit-Limit` / `X-RateLimit-Remaining` headers, proceeds  |
+| Throttled | `429 Too Many Requests` + `Retry-After`                          |
+
+> Runs behind ALB with `trust proxy` enabled so the bucket keys on the real
+> client IP. The bucket state is in-memory, so the limit holds **per instance**;
+> a shared (Redis + Lua) backend behind the `IRateLimiterStore` port makes it
+> consistent across instances — roadmap #1/#2.
 
 ## Quick Start
 
@@ -120,10 +163,13 @@ apps/payment-api/src/
 ├── config/              # Environment validation (Zod)
 ├── domain/              # Business entities
 ├── application/         # Use cases & schemas
-└── infrastructure/http/
-    ├── providers/       # Stripe with Circuit Breaker
-    ├── middlewares/     # Error handler
-    └── observability/   # Pino logger
+└── infrastructure/
+    ├── idempotency/     # IIdempotencyStore port + in-memory impl
+    ├── rate-limiting/   # IRateLimiterStore port + token-bucket impl
+    └── http/
+        ├── providers/       # Stripe with Circuit Breaker
+        ├── middlewares/     # Error handler, idempotency, rate limiter
+        └── observability/   # Pino logger
 ```
 
 ## Roadmap
@@ -133,8 +179,8 @@ Terraform (VPC/ECS/ECR/ALB), CI, and 77 passing tests — is implemented and ver
 today. Planned enhancements (reflected as the **target state** in the extended
 architecture diagram; **not yet wired**):
 
-- [ ] **Distributed rate limiting** — back the limiter with Redis (token bucket) so limits hold across instances behind the ALB
-- [ ] **Idempotency keys** — safe client retries without double-charging
+- [x] **Token-bucket rate limiting** — real burst + refill algorithm with `429`/`Retry-After` _(in-memory, single-instance; Redis-backed distribution pending #1)_
+- [x] **Idempotency keys** — safe client retries without double-charging _(in-memory, single-instance; distributed store pending #1)_
 - [ ] **Persistence** — MongoDB for payment records and auditability
 - [ ] **Deeper readiness probe** — verify downstream dependencies, not just liveness
 - [ ] **Exported metrics** — request rate, latency, breaker state, rate-limit rejections

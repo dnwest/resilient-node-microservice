@@ -6,6 +6,9 @@ const envSchema = z.object({
   PORT: z.string().default('3000').transform(Number),
   STRIPE_API_URL: z.string().url(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+  IDEMPOTENCY_TTL_SECONDS: z.string().default('86400').transform(Number),
+  RATE_LIMIT_CAPACITY: z.string().default('20').transform(Number),
+  RATE_LIMIT_REFILL_PER_SECOND: z.string().default('10').transform(Number),
 });
 
 const _env = envSchema.safeParse(process.env);
