@@ -30,6 +30,7 @@ Client → ALB → ECS Fargate → Express (Zod validation)
 | Validation | Zod 4            |
 | Logging    | Pino             |
 | Metrics    | prom-client      |
+| Cache/Store | Redis (ioredis) |
 | Monorepo   | pnpm + Turborepo |
 | Container  | Docker           |
 | IaC        | Terraform        |
@@ -57,9 +58,10 @@ CLOSED ──[50% errors]──► OPEN ──[10s]──► HALF-OPEN ──[su
 | `/ready`  | Readiness | Downstream dependencies reachable; `503` when a dependency is down. |
 
 `/ready` reports per-dependency status and flips to `503 NOT_READY` once the
-payment gateway's circuit breaker trips open — so an orchestrator stops routing
-traffic to an instance whose dependency is unhealthy, without the ALB flapping on
-transient blips (that stays on liveness `/health`).
+payment gateway's circuit breaker trips open (and, when `REDIS_URL` is set, when
+Redis is unreachable) — so an orchestrator stops routing traffic to an instance
+whose dependency is unhealthy, without the ALB flapping on transient blips (that
+stays on liveness `/health`).
 
 ### Gateway Timeouts & Retries
 
@@ -112,9 +114,9 @@ curl -X POST http://localhost:3000/api/v1/payments \
 | Same key while first is in flight   | `409 Conflict` + `Retry-After`                |
 | Failed attempt (non-2xx)            | Key released so the client can safely retry   |
 
-> Backed by an in-memory store keyed for **single-instance** correctness today,
-> behind the `IIdempotencyStore` port. Sharing it across instances (Redis) is
-> tracked in the roadmap (#1/#2).
+> Backed by the `IIdempotencyStore` port. Set `REDIS_URL` to use the distributed
+> Redis adapter (atomic reserve via Lua), so de-duplication holds across every
+> instance; without it, an in-memory store is used (single-instance).
 
 ### Rate Limiting (Token Bucket)
 
@@ -132,9 +134,9 @@ capacity (burst) ──drains per request──► 0 ──refills at N/sec─�
 | Throttled | `429 Too Many Requests` + `Retry-After`                          |
 
 > Runs behind ALB with `trust proxy` enabled so the bucket keys on the real
-> client IP. The bucket state is in-memory, so the limit holds **per instance**;
-> a shared (Redis + Lua) backend behind the `IRateLimiterStore` port makes it
-> consistent across instances — roadmap #1/#2.
+> client IP. Set `REDIS_URL` to use the distributed Redis adapter (refill-and-take
+> in a single atomic Lua script), enforcing one shared limit across all
+> instances; without it, an in-memory bucket is used (per-instance).
 
 ## Quick Start
 
@@ -143,6 +145,7 @@ git clone https://github.com/dnwest/resilient-node-microservice.git
 cd resilient-node-microservice
 pnpm install
 cp apps/payment-api/.env.example apps/payment-api/.env
+docker compose up -d redis   # optional: enables distributed stores (set REDIS_URL)
 pnpm dev
 ```
 
@@ -166,6 +169,9 @@ GATEWAY_TIMEOUT_MS=2000
 GATEWAY_MAX_RETRIES=2
 GATEWAY_RETRY_BASE_MS=100
 GATEWAY_BREAKER_TIMEOUT_MS=8000
+
+# Distributed stores (optional). When set, idempotency + rate limiting use Redis.
+REDIS_URL=redis://localhost:6379
 ```
 
 ## Commands
@@ -217,8 +223,9 @@ apps/payment-api/src/
 ├── domain/              # Business entities
 ├── application/         # Use cases & schemas
 └── infrastructure/
-    ├── idempotency/     # IIdempotencyStore port + in-memory impl
-    ├── rate-limiting/   # IRateLimiterStore port + token-bucket impl
+    ├── create-stores.ts # Factory: Redis vs in-memory store selection
+    ├── idempotency/     # IIdempotencyStore port + in-memory & Redis impls
+    ├── rate-limiting/   # IRateLimiterStore port + in-memory & Redis impls
     └── http/
         ├── providers/       # Stripe: Circuit Breaker + timeout/retry
         ├── middlewares/     # Error handler, idempotency, rate limiter
@@ -233,8 +240,8 @@ Terraform (VPC/ECS/ECR/ALB), CI, and 77 passing tests — is implemented and ver
 today. Planned enhancements (reflected as the **target state** in the extended
 architecture diagram; **not yet wired**):
 
-- [x] **Token-bucket rate limiting** — real burst + refill algorithm with `429`/`Retry-After` _(in-memory, single-instance; Redis-backed distribution pending #1)_
-- [x] **Idempotency keys** — safe client retries without double-charging _(in-memory, single-instance; distributed store pending #1)_
+- [x] **Token-bucket rate limiting** — real burst + refill algorithm with `429`/`Retry-After`; distributed via Redis (atomic Lua) when `REDIS_URL` is set
+- [x] **Idempotency keys** — safe client retries without double-charging; distributed via Redis when `REDIS_URL` is set
 - [ ] **Persistence** — MongoDB for payment records and auditability
 - [x] **Readiness probe** — `/ready` verifies downstream dependencies (gateway breaker state), distinct from liveness `/health`
 - [x] **Exported metrics** — `/metrics` (Prometheus) with request rate, latency, breaker state, rate-limit rejections

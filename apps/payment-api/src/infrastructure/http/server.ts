@@ -4,12 +4,12 @@ import { logger } from "./observability/logger";
 import { env } from "../../config/env";
 import { StripePaymentProvider } from "./providers/StripePaymentProvider";
 import { idempotency } from "./middlewares/idempotency.middleware";
-import { InMemoryIdempotencyStore } from "../idempotency/in-memory-idempotency-store";
 import { rateLimiter } from "./middlewares/rate-limiter.middleware";
-import { InMemoryTokenBucketStore } from "../rate-limiting/in-memory-token-bucket-store";
 import { readinessHandler } from "./health/readiness.handler";
+import type { HealthCheck } from "./health/health-check";
 import { createMetrics, metricsHandler } from "./observability/metrics";
 import { httpMetrics } from "./middlewares/metrics.middleware";
+import { createStores } from "../create-stores";
 
 const app = express();
 // Honour X-Forwarded-For so req.ip is the real client behind the ALB.
@@ -21,18 +21,38 @@ const metrics = createMetrics();
 app.use(httpMetrics(metrics));
 
 const paymentProvider = new StripePaymentProvider();
-const idempotencyStore = new InMemoryIdempotencyStore(
-  env.IDEMPOTENCY_TTL_SECONDS * 1000,
-);
-const rateLimiterStore = new InMemoryTokenBucketStore({
-  capacity: env.RATE_LIMIT_CAPACITY,
-  refillTokens: env.RATE_LIMIT_REFILL_PER_SECOND,
-  refillIntervalMs: 1000,
+const stores = createStores({
+  redisUrl: env.REDIS_URL,
+  idempotencyTtlMs: env.IDEMPOTENCY_TTL_SECONDS * 1000,
+  rateLimit: {
+    capacity: env.RATE_LIMIT_CAPACITY,
+    refillTokens: env.RATE_LIMIT_REFILL_PER_SECOND,
+    refillIntervalMs: 1000,
+  },
 });
+
+logger.info(
+  { backend: env.REDIS_URL ? "redis" : "in-memory" },
+  "Idempotency & rate-limiter stores initialised",
+);
 
 metrics.observeCircuitBreaker("payment-gateway", () =>
   paymentProvider.getBreakerState(),
 );
+
+const readinessChecks: HealthCheck[] = [
+  {
+    name: "payment-gateway",
+    check: async () => (paymentProvider.isAvailable() ? "up" : "down"),
+  },
+];
+if (stores.redis) {
+  const redis = stores.redis;
+  readinessChecks.push({
+    name: "redis",
+    check: async () => (redis.status === "ready" ? "up" : "down"),
+  });
+}
 
 app.get("/metrics", metricsHandler(metrics));
 
@@ -42,24 +62,16 @@ app.get("/health", (_req, res) => {
 });
 
 // Readiness: downstream dependencies are reachable. Flips to 503 when the
-// payment gateway's circuit breaker is open.
-app.get(
-  "/ready",
-  readinessHandler([
-    {
-      name: "payment-gateway",
-      check: async () => (paymentProvider.isAvailable() ? "up" : "down"),
-    },
-  ]),
-);
+// payment gateway's circuit breaker is open or Redis is unreachable.
+app.get("/ready", readinessHandler(readinessChecks));
 
 app.post(
   "/api/v1/payments",
-  rateLimiter(rateLimiterStore, {
+  rateLimiter(stores.rateLimiterStore, {
     onRejected: () =>
       metrics.rateLimitRejectionsTotal.inc({ route: "/api/v1/payments" }),
   }),
-  idempotency(idempotencyStore),
+  idempotency(stores.idempotencyStore),
   async (req, res) => {
     const { amount, currency } = req.body;
 
@@ -83,16 +95,15 @@ const server = app.listen(env.PORT, () => {
 const gracefulShutdown = (signal: string) => {
   logger.info(`Received ${signal}. Starting graceful shutdown...`);
 
-  idempotencyStore.stop();
-  rateLimiterStore.stop();
-
-  server.close((err) => {
+  server.close(async (err) => {
     if (err) {
       logger.error({ err }, "Error during HTTP server closure");
       process.exit(1);
     }
 
     logger.info("HTTP server closed. No longer accepting connections.");
+
+    await stores.dispose();
 
     logger.info("Graceful shutdown completed. Exiting process.");
     process.exit(0);

@@ -13,6 +13,9 @@ const envSchema = z.object({
   GATEWAY_MAX_RETRIES: z.string().default('2').transform(Number),
   GATEWAY_RETRY_BASE_MS: z.string().default('100').transform(Number),
   GATEWAY_BREAKER_TIMEOUT_MS: z.string().default('8000').transform(Number),
+  // When set, idempotency + rate limiting use the distributed Redis stores;
+  // otherwise they fall back to in-memory (single-instance).
+  REDIS_URL: z.string().optional(),
 });
 
 const _env = envSchema.safeParse(process.env);
